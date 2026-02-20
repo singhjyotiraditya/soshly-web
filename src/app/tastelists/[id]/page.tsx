@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getTasteList,
   getTasteListItems,
+  getPlaceItemsFromOtherTastelists,
   updateTasteList,
 } from "@/lib/firestore-tastelists";
 import { CREW_PERSONAS, getCrewPersonaFromPersona } from "@/lib/personas";
@@ -16,24 +17,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { TextInput } from "@/components/ui/TextInput";
 import type { TasteList, TasteListItem } from "@/types";
 
-const RECOMMENDED_PLACES = [
-  {
-    name: "Café Picante",
-    address: "Mihani street, Pune",
-    distance: "2.5 mi",
-    seed: "cafe1",
-  },
-  { name: "Kats", address: "Urela", distance: "3.1 mi", seed: "cafe2" },
-  { name: "Brew & Co", address: "Downtown", distance: "1.2 mi", seed: "cafe3" },
-];
-
 export default function TasteListDetailPage() {
   const params = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading, firebaseUser } = useAuth();
   const id = params.id as string;
   const [list, setList] = useState<TasteList | null>(null);
   const [items, setItems] = useState<TasteListItem[]>([]);
+  const [recommendedPlaces, setRecommendedPlaces] = useState<TasteListItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const userDataLoading = authLoading || (!!firebaseUser && user === null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -51,6 +44,16 @@ export default function TasteListDetailPage() {
       .then(setItems)
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (userDataLoading) {
+      setRecommendedPlaces([]);
+      return;
+    }
+    getPlaceItemsFromOtherTastelists(user?.uid ?? null, 12)
+      .then(setRecommendedPlaces)
+      .catch(() => setRecommendedPlaces([]));
+  }, [userDataLoading, user?.uid]);
 
   useEffect(() => {
     if (list) {
@@ -189,34 +192,46 @@ export default function TasteListDetailPage() {
           </Link>
         )}
 
-        {/* Recommended places */}
+        {/* Places from other owners' tastelists */}
+        {recommendedPlaces.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-3 text-base font-medium text-white">
-            {crewName} Recommend places for you
+            {crewName} recommend places for you
           </h2>
           <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
-            {RECOMMENDED_PLACES.map((place) => (
-              <Link
-                key={place.seed}
-                href={`/tastelists/${id}/add-place`}
-                className="relative block h-44 w-36 shrink-0 overflow-hidden rounded-2xl"
-              >
-                <Image
-                  src={`https://picsum.photos/seed/${place.seed}/300/400`}
-                  alt=""
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                  <p className="font-medium">{place.name}</p>
-                  <p className="text-xs opacity-90">{place.address}</p>
-                  <p className="mt-1 text-xs opacity-80">{place.distance}</p>
-                </div>
-              </Link>
-            ))}
+            {recommendedPlaces.map((place) => {
+              const geo = place.geo as { latitude?: number; longitude?: number } | undefined;
+              const lat = geo?.latitude ?? (geo as { lat?: number })?.lat;
+              const lng = geo?.longitude ?? (geo as { lng?: number })?.lng;
+              const hasGeo = typeof lat === "number" && typeof lng === "number";
+              const href = hasGeo
+                ? `/tastelists/${id}/add-place/details?lat=${lat}&lng=${lng}&address=${encodeURIComponent(place.address ?? "")}&title=${encodeURIComponent(place.title)}`
+                : `/tastelists/${id}/add-place`;
+              const cover = place.photos?.[0] ?? `https://picsum.photos/seed/${place.id}/300/400`;
+              return (
+                <Link
+                  key={place.id}
+                  href={href}
+                  className="relative block h-44 w-36 shrink-0 overflow-hidden rounded-2xl"
+                >
+                  <Image
+                    src={cover}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="144px"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                    <p className="font-medium">{place.title}</p>
+                    <p className="text-xs opacity-90">{place.address ?? ""}</p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
+        )}
 
         {/* Listed items */}
         {items.length > 0 && (

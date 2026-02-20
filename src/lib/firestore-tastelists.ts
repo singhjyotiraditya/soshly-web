@@ -98,6 +98,22 @@ export async function getPublicTasteListsFromOthers(
   return lists.slice(0, limitCount);
 }
 
+/** Place items from other users' public tastelists (for recommendations). */
+export async function getPlaceItemsFromOtherTastelists(
+  currentUserId: string | null,
+  limitCount = 12
+): Promise<TasteListItem[]> {
+  const lists = await getPublicTasteListsFromOthers(currentUserId, 8);
+  const itemArrays = await Promise.all(
+    lists.map((l) => getTasteListItems(l.id))
+  );
+  const places = itemArrays
+    .flat()
+    .filter((item) => item.type === "place")
+    .slice(0, limitCount);
+  return places;
+}
+
 export async function createTasteList(
   input: Omit<TasteList, "id" | "createdAt">
 ): Promise<string> {

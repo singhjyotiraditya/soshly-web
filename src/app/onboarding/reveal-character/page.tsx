@@ -36,24 +36,9 @@ function renderQuoteWithBold(text: string): React.ReactNode[] {
 }
 
 const CAROUSEL_CARDS = [
-  {
-    image: "/personas/car1.png",
-    icon: "❤️",
-    title: "Experience",
-    subtitle: "Exposure you are looking for",
-  },
-  {
-    image: "/personas/car2.png",
-    icon: "📍",
-    title: "Place",
-    subtitle: "Where you are looking for",
-  },
-  {
-    image: "/personas/car3.png",
-    icon: "⭐",
-    title: "Hobby",
-    subtitle: "What you are looking for",
-  },
+  { image: "/persona_meta/exp.png" },
+  { image: "/persona_meta/place.png" },
+  { image: "/persona_meta/hobby.png" },
 ] as const;
 
 const FLOATING_PLACEMENTS = [
@@ -76,20 +61,23 @@ export default function RevealCharacterPage() {
   useEffect(() => {
     const el = carouselRef.current;
     if (!el) return;
-    const paddingLeft = parseFloat(getComputedStyle(el).paddingLeft) || 16;
     const cardWidth = 250;
-    const gap = 16;
-    const cardStep = cardWidth + gap;
     const onScroll = () => {
-      const { scrollLeft } = el;
-      // Card centers are at: paddingLeft + (offsetWidth/2 - 125) + 125 + i*cardStep = paddingLeft + offsetWidth/2 + i*cardStep
-      // Viewport center = scrollLeft + offsetWidth/2. Match: scrollLeft ≈ paddingLeft + i*cardStep
-      const index = Math.round((scrollLeft - paddingLeft) / cardStep);
+      const spacer = el.firstElementChild as HTMLElement | null;
+      const spacerWidth = spacer?.offsetWidth ?? 0;
+      const viewportCenter = el.scrollLeft + el.clientWidth / 2;
+      const cardCenter0 = spacerWidth + cardWidth / 2;
+      const index = Math.round((viewportCenter - cardCenter0) / cardWidth);
       setCarouselIndex(Math.min(Math.max(0, index), CAROUSEL_CARDS.length - 1));
     };
-    onScroll(); // set initial state
+    onScroll();
     el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+    const ro = new ResizeObserver(onScroll);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -123,10 +111,10 @@ export default function RevealCharacterPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex min-h-screen flex-col items-center overflow-y-auto overflow-x-hidden">
-      <BaseLayout className="flex flex-1 flex-col pt-10 pb-8 px-4 min-h-0 overflow-hidden">
+    <div className="fixed inset-0 z-20 flex min-h-dvh flex-col items-center overflow-y-auto overflow-x-hidden">
+      <BaseLayout className="flex min-h-0 flex-col pt-10 pb-8 px-4">
         {/* Title + Character (no gap) */}
-        <div className="flex flex-1 flex-col items-center justify-start">
+        <div className="flex flex-col items-center justify-start">
           <div className="text-center">
             <p className="text-[16px] font-medium tracking-wider uppercase text-white/90 pb-1">
               The crew calls you
@@ -177,34 +165,26 @@ export default function RevealCharacterPage() {
           {/* Carousel */}
           <div
             ref={carouselRef}
-            className="-mx-4 mt-6 flex snap-x snap-mandatory overflow-x-auto scroll-smooth px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="relative z-0 -mx-4 mt-6 flex snap-x snap-mandatory overflow-x-auto scroll-smooth px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="min-w-[calc(50%-125px)] shrink-0" aria-hidden />
             {CAROUSEL_CARDS.map((card, i) => (
               <div
                 key={i}
-                className={`relative h-[280px] w-[250px] shrink-0 snap-center rounded-2xl bg-white shadow-lg transition-all duration-300 overflow-hidden ${
+                className={`relative h-[280px] w-[250px] shrink-0 snap-center overflow-hidden rounded-2xl transition-all duration-300 ${
                   i === carouselIndex
-                    ? "scale-100 blur-0"
-                    : "scale-[0.92] blur-[3px] opacity-80"
+                    ? "z-10 scale-105 blur-0 opacity-100"
+                    : "scale-[0.92] blur-xs opacity-75"
                 }`}
               >
-                <div className="absolute inset-0 overflow-hidden rounded-2xl bg-white shadow-[inset_0_0_20px_rgba(255,255,255,0.3)]">
+                <div className="absolute inset-0 overflow-hidden rounded-2xl">
                   <Image
                     src={card.image}
-                    alt={card.title}
+                    alt=""
                     fill
                     className="object-cover"
                     unoptimized
                   />
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 px-3 py-4 flex flex-col justify-end text-center">
-                  <p className="text-base font-bold text-white drop-shadow-sm">
-                    {card.icon} {card.title}
-                  </p>
-                  <p className="text-xs text-white/90 drop-shadow-sm">
-                    {card.subtitle}
-                  </p>
                 </div>
               </div>
             ))}
@@ -212,8 +192,8 @@ export default function RevealCharacterPage() {
           </div>
         </div>
 
-        {/* Proceed */}
-        <div className="sticky bottom-0 flex w-full flex-col items-center gap-4 pt-4">
+        {/* Proceed - padding so button stays visible on small screens */}
+        <div className="sticky bottom-0 z-20 flex w-full flex-col items-center gap-4 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]">
           <button
             type="button"
             onClick={handleProceed}

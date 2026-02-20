@@ -235,6 +235,7 @@ export default function ExperienceDetailPage() {
         </div>
       </BaseLayout>
 
+      {user?.uid !== experience.hostId && (
       <div className="fixed bottom-0 left-0 right-0 z-20 space-y-3 px-4 pb-6 pt-4">
         <div className="mx-auto max-w-md space-y-3">
           {hasJoined ? (
@@ -266,6 +267,7 @@ export default function ExperienceDetailPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

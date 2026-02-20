@@ -169,7 +169,11 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
               placeholder="Search address or place…"
               theme={searchBoxTheme}
               options={{
-                proximity: lng != null && lat != null ? { lng, lat } : undefined,
+                country: process.env.NEXT_PUBLIC_MAPBOX_COUNTRY ?? "IN",
+                proximity:
+                  lng != null && lat != null
+                    ? { lng, lat }
+                    : { lng: defaultCenter.lng, lat: defaultCenter.lat },
               }}
             />
           </div>

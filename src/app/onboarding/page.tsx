@@ -143,23 +143,17 @@ export default function OnboardingPage() {
         ))}
       </div>
 
-      <Text
-        as="h1"
-        variant="primary"
-        className="mb-1 text-center text-2xl font-bold text-white mx-4"
+      <div
+        className="text-center text-lg font-medium text-white mx-4 mb-1"
       >
         What kind of vibe are you all about?
-      </Text>
-      <Text
-        as="p"
-        variant="secondary"
-        className="mb-4 text-center text-white/80 mx-6"
-      >
+      </div>
+      <div className="text-center text-sm text-white/80 mx-6">
         Swipe the card right if your taste matches the vibe and left if not
-      </Text>
+      </div>
 
       {canUndo && (
-        <div className="absolute right-4 top-40 z-20">
+        <div className="absolute right-4 top-30 z-20">
           <button
             type="button"
             onClick={(e) => {
@@ -187,22 +181,22 @@ export default function OnboardingPage() {
       )}
 
       {/* Card stack */}
-      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col items-center justify-center px-16">
+      <div className="relative mx-auto flex w-full max-w-[320px] flex-1 flex-col items-center justify-center px-6">
         {card && swipeIndex < total - 1 && (
           <div
-            className="absolute h-[600px] w-full max-w-sm rounded-3xl bg-white/10 backdrop-blur-sm"
+            className="absolute h-[450px] w-full max-w-[320px] rounded-2xl bg-white/10 backdrop-blur-sm"
             style={{ transform: "scale(0.95)", zIndex: 0 }}
           >
-            <div className="relative h-[600px] w-full overflow-hidden rounded-3xl">
+            <div className="relative h-[450px] w-full overflow-hidden rounded-2xl">
               <Image
                 src={VIBE_CARDS[swipeIndex + 1].imageUrl}
                 alt=""
                 fill
                 className="object-cover"
-                sizes="400px"
+                sizes="320px"
               />
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-center">
-                <p className="text-lg font-medium text-white">
+              <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 text-center">
+                <p className="text-base font-medium text-white">
                   {VIBE_CARDS[swipeIndex + 1].label}
                 </p>
               </div>
@@ -212,7 +206,7 @@ export default function OnboardingPage() {
 
         {card && (
           <div
-            className="absolute h-[600px] w-full max-w-sm cursor-grab select-none rounded-2xl bg-white/10 backdrop-blur-sm active:cursor-grabbing"
+            className="absolute h-[450px] w-full max-w-[320px] cursor-grab select-none rounded-2xl bg-white/10 backdrop-blur-sm active:cursor-grabbing"
             style={{
               transform: `translateX(${translateX}px) rotate(${rotation}deg)`,
               transition: exitDirection ? "transform 0.2s ease-out" : "none",
@@ -225,7 +219,7 @@ export default function OnboardingPage() {
             onPointerLeave={handlePointerLeave}
             onPointerCancel={handlePointerLeave}
           >
-            <div className="relative h-[600px] w-full overflow-hidden rounded-2xl">
+            <div className="relative h-[450px] w-full overflow-hidden rounded-2xl">
               <Image
                 src={card.imageUrl}
                 alt={card.label}
@@ -233,8 +227,8 @@ export default function OnboardingPage() {
                 className="object-cover"
                 sizes="400px"
               />
-              <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
-                <p className="text-lg font-medium text-white">{card.label}</p>
+              <div className="absolute bottom-0 left-0 right-0 p-3 text-center">
+                <p className="text-base font-medium text-white">{card.label}</p>
               </div>
             </div>
           </div>
