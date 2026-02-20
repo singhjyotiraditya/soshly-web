@@ -40,6 +40,22 @@ Next.js app for Soshly: onboard with phone/Gmail, create TasteLists, host and jo
 
    Open [http://localhost:3000](http://localhost:3000).
 
+## Deploy / Production – Google sign-in
+
+If **Sign in with Google** works locally but not in production:
+
+1. **Firebase Console** → Authentication → [Settings] → **Authorized domains**  
+   Add your production domain (e.g. `yourapp.vercel.app` or `www.yourdomain.com`).  
+   Without this, the popup/redirect is rejected.
+
+2. **Google Cloud Console** → APIs & Services → Credentials → your **OAuth 2.0 Client ID** (Web client used by Firebase)  
+   Under **Authorized JavaScript origins**, add `https://your-production-domain.com` (no trailing slash).
+
+3. **Host env vars**  
+   Set all `NEXT_PUBLIC_FIREBASE_*`, `SESSION_SECRET`, and Firebase Admin keys in your host (e.g. Vercel).
+
+The app falls back to **redirect** sign-in when the popup is blocked (e.g. mobile or strict browsers).
+
 ## Scripts
 
 - `npm run dev` – Development server

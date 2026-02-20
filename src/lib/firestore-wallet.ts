@@ -10,7 +10,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Transaction } from "@/types";
+import type { Transaction, Ticket } from "@/types";
 
 const TRANSACTIONS = "transactions";
 const USERS = "users";
@@ -49,6 +49,34 @@ export async function getTransactionsForUser(
   });
 }
 
+export async function getTicketForUserAndExperience(
+  experienceId: string,
+  userId: string
+): Promise<Ticket | null> {
+  const q = query(
+    collection(db, TICKETS),
+    where("experienceId", "==", experienceId),
+    where("userId", "==", userId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  const ticketDoc = snap.docs[0];
+  if (!ticketDoc?.exists()) return null;
+  const data = ticketDoc.data();
+  const createdAt = data.createdAt;
+  return {
+    id: ticketDoc.id,
+    experienceId: data.experienceId as string,
+    userId: data.userId as string,
+    ticketId: data.ticketId as string,
+    status: data.status as Ticket["status"],
+    createdAt:
+      createdAt instanceof Timestamp
+        ? createdAt.toDate().toISOString()
+        : (createdAt as string),
+  };
+}
+
 export async function getBalance(userId: string): Promise<number> {
   const q = query(collection(db, TRANSACTIONS), where("userId", "==", userId));
   const snap = await getDocs(q);
@@ -82,6 +110,12 @@ export async function joinExperience(
       : 0;
     if (balance < coinPrice) throw new Error("Insufficient balance");
 
+    const escrowRef = doc(db, ESCROWS, experienceId);
+    const escrowSnap = await tx.get(escrowRef);
+    const currentTotal = escrowSnap.exists()
+      ? ((escrowSnap.data().totalCoins as number) ?? 0)
+      : 0;
+
     const now = new Date().toISOString();
     const ticketId = `T${Date.now()}-${userId.slice(0, 8)}`;
 
@@ -94,11 +128,6 @@ export async function joinExperience(
       createdAt: now,
     });
 
-    const escrowRef = doc(db, ESCROWS, experienceId);
-    const escrowSnap = await tx.get(escrowRef);
-    const currentTotal = escrowSnap.exists()
-      ? ((escrowSnap.data().totalCoins as number) ?? 0)
-      : 0;
     tx.set(escrowRef, {
       experienceId,
       totalCoins: currentTotal + coinPrice,

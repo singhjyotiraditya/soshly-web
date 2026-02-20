@@ -149,3 +149,98 @@ export async function getDmThreadsForUser(
     return { id: d.id, otherUserId: other };
   });
 }
+
+export interface ChatListItem {
+  id: string;
+  title: string;
+  type: "group" | "dm";
+  experienceId?: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  otherUserId?: string;
+}
+
+export async function getLastMessage(
+  chatId: string
+): Promise<{ body?: string; createdAt: string } | null> {
+  const q = query(
+    collection(db, MESSAGES),
+    where("chatId", "==", chatId),
+    orderBy("createdAt", "desc"),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  const d = snap.docs[0];
+  if (!d) return null;
+  const data = d.data();
+  const createdAt = data.createdAt;
+  return {
+    body: data.body as string | undefined,
+    createdAt:
+      createdAt instanceof Timestamp
+        ? createdAt.toDate().toISOString()
+        : (createdAt as string),
+  };
+}
+
+/** All group chats the user is a member of (experience groups). */
+export async function getGroupChatsForUser(
+  userId: string
+): Promise<ChatListItem[]> {
+  const memberQ = query(
+    collection(db, CHAT_MEMBERS),
+    where("userId", "==", userId)
+  );
+  const memberSnap = await getDocs(memberQ);
+  const chatIds = [...new Set(memberSnap.docs.map((d) => d.data().chatId as string))];
+  if (chatIds.length === 0) return [];
+
+  const results: ChatListItem[] = [];
+  for (const chatId of chatIds) {
+    const chatRef = doc(db, CHATS, chatId);
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) continue;
+    const data = chatSnap.data();
+    const type = (data.type as string) ?? "group";
+    if (type !== "group") continue;
+    const last = await getLastMessage(chatId);
+    results.push({
+      id: chatId,
+      title: (data.title as string) ?? "Group",
+      type: "group",
+      experienceId: data.experienceId as string | undefined,
+      lastMessage: last?.body,
+      lastMessageAt: last?.createdAt,
+    });
+  }
+  results.sort((a, b) => {
+    const ta = a.lastMessageAt ?? "";
+    const tb = b.lastMessageAt ?? "";
+    return tb.localeCompare(ta);
+  });
+  return results;
+}
+
+/** All chats for the user: experience groups + DM threads, with last message. */
+export async function getAllChatsForUser(
+  userId: string
+): Promise<ChatListItem[]> {
+  const [groupChats, dmThreads] = await Promise.all([
+    getGroupChatsForUser(userId),
+    getDmThreadsForUser(userId),
+  ]);
+  const dmList: ChatListItem[] = await Promise.all(
+    dmThreads.map(async (t) => {
+      const last = await getLastMessage(t.id);
+      return {
+        id: t.id,
+        title: "", // filled by caller with other user's name
+        type: "dm" as const,
+        otherUserId: t.otherUserId,
+        lastMessage: last?.body,
+        lastMessageAt: last?.createdAt,
+      };
+    })
+  );
+  return [...groupChats, ...dmList];
+}

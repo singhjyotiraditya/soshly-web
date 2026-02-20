@@ -75,6 +75,29 @@ export async function getTasteListsByOwner(
   return lists;
 }
 
+/** Public tastelists owned by other users (excludes currentUserId). */
+export async function getPublicTasteListsFromOthers(
+  currentUserId: string | null,
+  limitCount = 20
+): Promise<TasteList[]> {
+  const q = query(
+    collection(db, TASTE_LISTS),
+    where("privacy", "==", "public"),
+    limit(100)
+  );
+  const snap = await getDocs(q);
+  let lists = snap.docs.map((d) =>
+    toTasteList(d.id, d.data() as Record<string, unknown>)
+  );
+  if (currentUserId) {
+    lists = lists.filter((l) => l.ownerId !== currentUserId);
+  }
+  lists.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  return lists.slice(0, limitCount);
+}
+
 export async function createTasteList(
   input: Omit<TasteList, "id" | "createdAt">
 ): Promise<string> {

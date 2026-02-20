@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { getExperience } from "@/lib/firestore-experiences";
+import { getUser } from "@/lib/firestore-users";
+import { getBalance, joinExperience } from "@/lib/firestore-wallet";
 import { PageHeader } from "@/components/PageHeader";
 import { BaseLayout } from "@/components/BaseLayout";
 import type { Experience } from "@/types";
@@ -47,30 +50,60 @@ function formatTimeRange(startIso: string | undefined, endIso: string | undefine
 export default function JoinExperiencePage() {
   const params = useParams();
   const id = params.id as string;
+  const { user } = useAuth();
   const [experience, setExperience] = useState<Experience | null>(null);
+  const [hostName, setHostName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [preferences, setPreferences] = useState<Record<string, boolean>>({});
   const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    getExperience(id)
-      .then(setExperience)
-      .finally(() => setLoading(false));
+    getExperience(id).then((exp) => {
+      setExperience(exp);
+      if (exp?.hostId) {
+        getUser(exp.hostId).then((u) => {
+          const name =
+            u?.nickname ||
+            u?.fullName?.split(" ")[0] ||
+            u?.username ||
+            "Host";
+          setHostName(name);
+        });
+      }
+    }).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getBalance(user.uid).then(setWalletBalance);
+  }, [user?.uid]);
 
   const togglePreference = (key: string) => {
     setPreferences((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
+    if (!user?.uid || !experience) return;
+    setError(null);
     setJoining(true);
-    // TODO: call join API (create ticket, escrow coins), then redirect
-    setTimeout(() => setJoining(false), 500);
+    try {
+      await joinExperience(id, user.uid);
+      const newBalance = await getBalance(user.uid);
+      setWalletBalance(newBalance);
+      router.push(`/experience/${id}/ticket`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setJoining(false);
+    }
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#2563eb]">
+      <div className="flex min-h-screen items-center justify-center">
         <p className="text-white">Loading…</p>
       </div>
     );
@@ -78,7 +111,7 @@ export default function JoinExperiencePage() {
 
   if (!experience) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#2563eb]">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <p className="text-white">Experience not found.</p>
         <Link href="/dashboard" className="text-white underline">
           Back to dashboard
@@ -98,12 +131,29 @@ export default function JoinExperiencePage() {
 
   return (
     <div className="min-h-screen pb-28">
-      <PageHeader title="Join this Experience" backHref={`/experience/${id}`} />
+      <PageHeader
+        title="Join this Experience"
+        backHref={`/experience/${id}`}
+        rightContent={
+          <div className="flex flex-col items-center gap-0.5">
+            <Image
+              src="/coins.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="h-6 w-6"
+            />
+            <span className="text-base font-semibold text-white tabular-nums">
+              {walletBalance ?? 0}
+            </span>
+          </div>
+        }
+      />
 
       <BaseLayout className="px-4 pt-2">
         {/* Experience summary card (frosted) */}
-        <div className="rounded-2xl border border-white/30 bg-white/20 p-0 shadow-lg backdrop-blur-md">
-          <div className="overflow-hidden rounded-t-2xl">
+        <div className="rounded-2xl border border-white/60 p-4 shadow-[inset_0_0_60px_40px_rgba(255,255,255,0.2)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-xl">
             {experience.cover ? (
               <div className="relative aspect-4/3 w-full">
                 <Image
@@ -111,11 +161,12 @@ export default function JoinExperiencePage() {
                   alt=""
                   fill
                   className="object-cover"
+                  loading="eager"
                 />
               </div>
             ) : (
               <div
-                className="aspect-4/3 w-full rounded-t-2xl"
+                className="aspect-4/3 w-full"
                 style={{
                   background:
                     "linear-gradient(319deg, #BAD5FF -12.2%, #FFBBF4 30.15%, #6CEF55 124.13%)",
@@ -123,7 +174,7 @@ export default function JoinExperiencePage() {
               />
             )}
           </div>
-          <div className="p-4">
+          <div className="pt-4 text-center">
             <h2 className="font-gayathri text-2xl font-bold tracking-tight text-white">
               {experience.title}
             </h2>
@@ -131,29 +182,17 @@ export default function JoinExperiencePage() {
               <p className="mt-1 text-sm text-white/80">{venue}</p>
             ) : null}
             <p className="mt-1 text-xs text-white/60">
-              Hosted by: Host
+              Hosted by: {hostName ?? "…"}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {["Social", "Chill", "Playful"].map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-white/60 px-3 py-1 text-xs font-medium text-white"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 space-y-2 text-sm text-white">
-              <div className="flex flex-wrap items-center gap-2">
-                <CalendarIcon className="h-4 w-4 shrink-0" />
-                <span>{dateStr}</span>
+            <div className="mx-auto my-4 w-3/4 border-t border-white/40" aria-hidden />
+            <div className="flex flex-col items-center gap-2 text-sm text-white">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span>{'📆 ' + dateStr}</span>
                 <span className="text-white/50">•</span>
-                <ClockIcon className="h-4 w-4 shrink-0" />
-                <span>{timeStr}</span>
+                <span>{'🕕 ' + timeStr}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <MapPinIcon className="h-4 w-4 shrink-0 text-red-300" />
-                <span>{locationStr}</span>
+              <div className="flex items-center justify-center gap-2">
+                <span>{'📍 ' + locationStr}</span>
               </div>
             </div>
           </div>
@@ -161,10 +200,10 @@ export default function JoinExperiencePage() {
 
         {/* Anything we should know? */}
         <section className="mt-6">
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-medium text-white">
             Anything we should know?
           </h3>
-          <p className="mt-1 text-sm italic text-white/70">
+          <p className="text-sm text-white/70">
             *Preferences are shared with the host to help the experience go
             smoothly.
           </p>
@@ -172,12 +211,30 @@ export default function JoinExperiencePage() {
             {PREFERENCES.map(({ id: key, label }) => (
               <li key={key}>
                 <label className="flex cursor-pointer items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={!!preferences[key]}
-                    onChange={() => togglePreference(key)}
-                    className="h-5 w-5 rounded border-2 border-white/60 bg-transparent text-white focus:ring-2 focus:ring-white/50"
-                  />
+                  <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={!!preferences[key]}
+                      onChange={() => togglePreference(key)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className="absolute inset-0 rounded border-2 border-white/60 bg-transparent peer-checked:border-white"
+                      aria-hidden
+                    />
+                    <svg
+                      className="h-3 w-3 text-white opacity-0 peer-checked:opacity-100"
+                      viewBox="0 0 12 10"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M1 5l3 3 7-7" />
+                    </svg>
+                  </span>
                   <span className="text-white">{label}</span>
                 </label>
               </li>
@@ -187,36 +244,55 @@ export default function JoinExperiencePage() {
 
         {/* Experience Contribution */}
         <section className="mt-8">
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-medium text-white">
             Experience Contribution
           </h3>
-          <p className="mt-1 text-sm text-white/70">
-            Covers the full curated experience, including food, drinks, and
-            activities.
+          <p className="text-sm text-white/70 whitespace-pre-wrap">
+            {String(experience.description ?? "").trim()
+              ? String(experience.description)
+              : String(experience.agenda ?? "").trim()
+                ? String(experience.agenda)
+                : "Covers the full curated experience, including food, drinks, and activities."}
           </p>
-          <div className="mt-3 flex items-center gap-2">
-            <CoinIcon className="h-6 w-6 shrink-0 text-white/90" />
-            <span className="text-lg font-bold text-white">
+          <div className="mt-6 flex items-center gap-2">
+            <Image
+              src="/coins.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="h-6 w-6 shrink-0"
+            />
+            <span className="text-lg font-medium text-white">
               {experience.coinPrice} Coins per person
             </span>
           </div>
-          <p className="mt-2 text-xs text-white/60">
+          <p className="text-xs text-white/60">
             *Coins are created only for this experience. If it&apos;s cancelled,
             they&apos;ll stay in your wallet to use later.
           </p>
         </section>
       </BaseLayout>
 
-      {/* Proceed to Join */}
+      {/* Pay */}
       <div className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-6 pt-4">
-        <div className="mx-auto max-w-md">
+        <div className="mx-auto max-w-md space-y-2">
+          {error ? (
+            <p className="text-center text-sm text-red-300">{error}</p>
+          ) : null}
           <button
             type="button"
             onClick={handleProceed}
-            disabled={joining}
-            className="w-full rounded-2xl bg-zinc-900 px-5 py-4 text-lg font-bold text-white transition hover:bg-zinc-800 active:scale-[0.98] disabled:opacity-60"
+            disabled={joining || !user?.uid}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-900 px-5 py-4 text-lg font-medium text-white transition hover:bg-zinc-800 active:scale-[0.98] disabled:opacity-60"
           >
-            {joining ? "Joining…" : "Proceed to Join"}
+            <Image
+              src="/coins.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="h-6 w-6"
+            />
+            {joining ? "Paying…" : `Pay ${experience.coinPrice} Coins`}
           </button>
         </div>
       </div>
@@ -224,70 +300,3 @@ export default function JoinExperiencePage() {
   );
 }
 
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="14" height="14" rx="1.5" />
-      <path d="M3 8h14M7 2v4M13 2v4" />
-    </svg>
-  );
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="10" cy="10" r="7.5" />
-      <path d="M10 6v4l3 2" />
-    </svg>
-  );
-}
-
-function MapPinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M10 10.833a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-      <path d="M10 2.5C6.36 2.5 3.5 5.82 3.5 9.5c0 4.5 6 8.167 6.5 8.167.5 0 6.5-3.667 6.5-8.167C16.5 5.82 13.64 2.5 10 2.5Z" />
-    </svg>
-  );
-}
-
-function CoinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 6v12M9 9a6 6 0 0 0 6 0M9 15a6 6 0 0 1 6 0" />
-    </svg>
-  );
-}

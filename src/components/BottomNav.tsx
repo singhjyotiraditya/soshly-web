@@ -2,34 +2,36 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const navItems = [
   {
-    href: "/tastelists",
-    label: "Tastelist",
-    activePath: "/tastelists",
+    href: "/dashboard",
+    label: "Dashboard",
+    activePath: "/dashboard",
     iconSrc: (active: boolean) =>
       active ? "/nav/home_on.svg" : "/nav/home_off.svg",
   },
   {
-    href: "/dashboard",
-    label: "Location",
-    activePath: "/dashboard",
-    iconSrc: () => "/nav/location_fill.svg",
+    href: "/nearby",
+    label: "Nearby",
+    activePath: "/nearby",
+    iconSrc: (active: boolean) =>
+      active ? "/nav/location_fill.svg" : "/nav/location_fill.svg",
   },
   { href: null, label: "Create", isFAB: true },
   {
     href: "/profile",
-    label: "Me",
+    label: "Profile",
     activePath: "/profile",
+    activeQueryExclude: "tab=experience",
     iconSrc: (active: boolean) =>
       active ? "/nav/me_on.svg" : "/nav/me_off.svg",
   },
   {
-    href: "/messages",
-    label: "Explore",
-    activePath: "/messages",
+    href: "/experiences",
+    label: "My experiences",
+    activePath: "/experiences",
     iconSrc: (active: boolean) =>
       active ? "/nav/exp_on.svg" : "/nav/exp_off.svg",
   },
@@ -37,6 +39,7 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 pt-2">
@@ -52,30 +55,27 @@ export function BottomNav() {
             "0 4px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
         }}
       >
-        {/* Notch for FAB */}
-        <div
-          className="absolute top-0 left-1/2 h-4 w-16 -translate-x-1/2 -translate-y-1/2 rounded-b-full"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%)",
-            backdropFilter: "blur(20px)",
-            borderLeft: "1px solid rgba(255,255,255,0.4)",
-            borderRight: "1px solid rgba(255,255,255,0.4)",
-            borderBottom: "1px solid rgba(255,255,255,0.4)",
-          }}
-        />
         {navItems.map((item, i) => {
           if (item.isFAB) {
             return (
               <Link
                 key={i}
                 href="/curate"
-                className="relative -mt-6 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white shadow-md transition hover:bg-orange-600 active:scale-95"
+                className="relative -mt-14 flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition hover:opacity-95 active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(111deg, #F35100 5.96%, #FE9764 112.68%), rgba(255,255,255,0.15)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  boxShadow:
+                    "0 0 16px 3px rgba(255,255,255,0.3) inset, 0 4px 12px rgba(0,0,0,0.15)",
+                }}
                 aria-label="Create"
               >
                 <svg
-                  width="28"
-                  height="28"
+                  width="36"
+                  height="36"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -90,8 +90,14 @@ export function BottomNav() {
             );
           }
           const active =
-            pathname === item.activePath ||
-            pathname.startsWith(item.activePath + "/");
+            "activeQuery" in item && item.activeQuery
+              ? pathname === item.activePath &&
+                searchParams?.get("tab") === (item.activeQuery as string).split("=")[1]
+              : "activeQueryExclude" in item && item.activeQueryExclude
+                ? pathname === item.activePath &&
+                  searchParams?.get("tab") !== (item.activeQueryExclude as string).split("=")[1]
+                : pathname === item.activePath ||
+                  pathname.startsWith(item.activePath + "/");
           const content =
             "iconSrc" in item && item.iconSrc ? (
               <Image

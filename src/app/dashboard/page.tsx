@@ -7,7 +7,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { CREW_PERSONAS, getCrewPersonaFromPersona } from "@/lib/personas";
 import { getPublishedExperiences } from "@/lib/firestore-experiences";
-import type { Experience } from "@/types";
+import { getPublicTasteListsFromOthers } from "@/lib/firestore-tastelists";
+import type { Experience, TasteList } from "@/types";
 
 const frostedCard =
   "rounded-2xl border border-white/40 backdrop-blur-xl bg-white/20 shadow-lg";
@@ -35,18 +36,56 @@ function experienceToSlide(exp: Experience): ExploreSlide {
   };
 }
 
-const CARD_WIDTH = 270;
+const CARD_WIDTH = 300;
 const CARD_SPACING = 14;
 const TOTAL_CARD_WIDTH = CARD_WIDTH + CARD_SPACING;
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading, firebaseUser } = useAuth();
   const exploreScrollRef = useRef<HTMLDivElement>(null);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [exploreSlides, setExploreSlides] = useState<ExploreSlide[]>([]);
+  const [otherTastelists, setOtherTastelists] = useState<TasteList[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<string | null>(null);
+
+  const userDataLoading = authLoading || (!!firebaseUser && user === null);
+
+  // Resolve current location (geolocation + Mapbox reverse geocode) – only show if we have it
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!token) return;
+        const { longitude, latitude } = position.coords;
+        fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${token}&types=place,locality,region&limit=1`
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            const feature = data.features?.[0];
+            const name = feature?.text ?? feature?.place_name?.split(",")[0];
+            if (name) setCurrentLocation(name);
+          })
+          .catch(() => {});
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }, []);
+
+  // Clear and only fetch after user state is resolved so we never show "all" (including mine) briefly
+  useEffect(() => {
+    if (userDataLoading) {
+      setExploreSlides([]);
+      setOtherTastelists([]);
+      return;
+    }
+  }, [userDataLoading]);
 
   useEffect(() => {
+    if (userDataLoading) return;
     const currentUserId = user?.uid ?? null;
     getPublishedExperiences(100)
       .then((exps) => {
@@ -56,7 +95,14 @@ export default function DashboardPage() {
         setExploreSlides(byOthers.map(experienceToSlide));
       })
       .catch(console.error);
-  }, [user?.uid]);
+  }, [userDataLoading, user?.uid]);
+
+  useEffect(() => {
+    if (userDataLoading) return;
+    getPublicTasteListsFromOthers(user?.uid ?? null, 20)
+      .then(setOtherTastelists)
+      .catch(console.error);
+  }, [userDataLoading, user?.uid]);
 
   useEffect(() => {
     const el = exploreScrollRef.current;
@@ -112,11 +158,58 @@ export default function DashboardPage() {
     user?.fullName?.split(" ")[0] ||
     user?.username ||
     "Explorer";
-  const location = "Chandigarh"; // TODO: derive from user geo
   const avatarFallback =
     user?.persona != null
       ? CREW_PERSONAS[getCrewPersonaFromPersona(user.persona)].imageUrl
       : CREW_PERSONAS.IZU.imageUrl;
+
+  if (userDataLoading) {
+    return (
+      <div className="min-h-screen pb-24">
+        <style>{`
+          @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+          .shimmer-bg {
+            background: linear-gradient(90deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.06) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+          }
+        `}</style>
+        <header className="sticky top-0 z-30 pt-4 pb-4">
+          <div className="mx-auto flex max-w-md items-center justify-between px-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-white/20 shimmer-bg" />
+              <div className="space-y-2">
+                <div className="h-5 w-28 rounded-lg bg-white/20 shimmer-bg" />
+                <div className="h-4 w-20 rounded bg-white/15 shimmer-bg" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-10 w-10 rounded-full bg-white/20 shimmer-bg" />
+              <div className="h-10 w-10 rounded-full bg-white/20 shimmer-bg" />
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto max-w-md px-4 pt-6">
+          <div className="space-y-4">
+            <div className="h-32 w-full rounded-2xl bg-white/10 shimmer-bg" />
+            <div className="flex gap-4 overflow-hidden">
+              <div className="h-56 w-72 shrink-0 rounded-2xl bg-white/10 shimmer-bg" />
+              <div className="h-56 w-72 shrink-0 rounded-2xl bg-white/10 shimmer-bg" />
+            </div>
+            <div className="h-6 w-48 rounded bg-white/15 shimmer-bg" />
+            <div className="flex gap-4 overflow-hidden">
+              <div className="h-64 w-[280px] shrink-0 rounded-2xl bg-white/10 shimmer-bg" />
+              <div className="h-64 w-[280px] shrink-0 rounded-2xl bg-white/10 shimmer-bg" />
+            </div>
+          </div>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-24">
@@ -135,16 +228,18 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="text-xl font-medium text-white">{displayName}</h1>
-              <p className="flex items-center gap-1 text-sm text-white">
-                <Image
-                  src="/nav/location_fill.svg"
-                  alt=""
-                  width={14}
-                  height={14}
-                  className="shrink-0"
-                />
-                {location}
-              </p>
+              {currentLocation ? (
+                <p className="flex items-center gap-1 text-sm text-white">
+                  <Image
+                    src="/nav/location_fill.svg"
+                    alt=""
+                    width={14}
+                    height={14}
+                    className="shrink-0"
+                  />
+                  {currentLocation}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -261,59 +356,81 @@ export default function DashboardPage() {
           </div>
         </Link>
 
-        {/* Top Experiences for you – live tastelists where you're not the owner */}
+        {/* Tastelists from other users – only show if any have cover */}
+        {(() => {
+          const tastelistsWithCover = otherTastelists.filter((list) => list.coverImage);
+          if (tastelistsWithCover.length === 0) return null;
+          const singleCard = tastelistsWithCover.length === 1;
+          return (
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-white">
+          <h2 className="mb-3 text-xl font-medium text-white">
             Top Experiences for you:-
           </h2>
-          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
-            {[
-              {
-                title: "Sip • Play • Chill",
-                subtitle: "Café XYZ – Korean Café & Gaming Lounge",
-                desc: "Go to cafe and enjoy blah blah blah etcetcetc",
-                seed: "cafe",
-              },
-              {
-                title: "Skate",
-                subtitle: "Skate Park Session",
-                desc: "Ride the ramps",
-                seed: "skate",
-              },
-              {
-                title: "Food Tour",
-                subtitle: "Street Food Crawl",
-                desc: "Taste the best local bites",
-                seed: "streetfood",
-              },
-            ].map((exp) => (
-              <Link
-                key={exp.seed}
-                href="/tastelists"
-                className="relative block h-48 w-72 shrink-0 overflow-hidden rounded-2xl shadow-lg"
-              >
-                <Image
-                  src={`https://picsum.photos/seed/${exp.seed}/600/400`}
-                  alt=""
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                  <h3 className="font-bold">{exp.title}</h3>
-                  <p className="text-sm opacity-90">{exp.subtitle}</p>
-                  <p className="mt-1 line-clamp-2 text-xs opacity-80">
-                    {exp.desc}
-                  </p>
-                </div>
-              </Link>
+          <div
+            className={
+              singleCard
+                ? "w-full pb-2"
+                : "scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2"
+            }
+          >
+            {tastelistsWithCover.map((list) => (
+                <Link
+                  key={list.id}
+                  href={`/tastelists/${list.id}`}
+                  className={`relative block h-56 overflow-hidden rounded-2xl ${
+                    singleCard ? "w-full" : "w-80 shrink-0"
+                  }`}
+                >
+                  {list.coverImage ? (
+                    <Image
+                      src={list.coverImage}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="320px"
+                    />
+                  ) : (
+                    <div
+                      className="h-full w-full"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%)",
+                      }}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
+                  {/* Bottom frosted blur that fades upward */}
+                  <div
+                    className="absolute inset-0 z-10 pointer-events-none"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.10)",
+                      backdropFilter: "blur(10px) saturate(1.1) brightness(1.1)",
+                      WebkitBackdropFilter: "blur(10px) saturate(1.1) brightness(1.1)",
+                      WebkitMaskImage:
+                        "linear-gradient(to bottom, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 1) 65%)",
+                      maskImage:
+                        "linear-gradient(to bottom, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 1) 65%)",
+                    }}
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pt-10 text-center text-white">
+                    <h3 className="font-medium">{list.name}</h3>
+                    {list.description ? (
+                      <p className="mt-1 line-clamp-2 text-xs opacity-90">
+                        {list.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </Link>
             ))}
           </div>
         </section>
+          );
+        })()}
 
-        {/* Explore – scroll-based carousel, cards tilt on circular path */}
-        <section className="pt-6 pb-16">
-          <h2 className="mb-3 text-lg font-semibold text-white">Explore</h2>
+        {/* Explore – scroll-based carousel, only show if any experiences */}
+        {exploreSlides.length > 0 && (
+        <section className="pb-16">
+          <h2 className="mb-1 text-xl font-medium text-white">Explore!</h2>
           {/*
             NOTE: We intentionally do NOT use CSS scroll-snap here.
             Because cards are transformed (rotate/scale/translate), browser snap points can feel inconsistent.
@@ -321,7 +438,7 @@ export default function DashboardPage() {
           */}
           <div
             ref={exploreScrollRef}
-            className="explore-scroll -mx-4 flex overflow-x-auto overflow-y-visible px-0 py-14"
+            className="explore-scroll -mx-4 flex overflow-x-auto overflow-y-visible px-0 py-4"
             style={{
               scrollbarWidth: "none",
               msOverflowStyle: "none",
@@ -366,7 +483,7 @@ export default function DashboardPage() {
                   >
                     <Link
                       href={`/experience/${slide.id}`}
-                      className="block h-[420px] w-full overflow-hidden rounded-2xl shadow-xl"
+                      className="block h-[420px] w-full overflow-hidden rounded-2xl"
                     >
                       <div className="relative h-full w-full">
                         <Image
@@ -374,20 +491,33 @@ export default function DashboardPage() {
                           alt=""
                           fill
                           className="object-cover"
-                          sizes="270px"
+                          sizes="300px"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                        <div className="absolute left-3 top-3 text-3xl">
+                        {/* Bottom frosted blur that fades upward */}
+                        <div
+                          className="absolute inset-0 z-10 pointer-events-none"
+                          style={{
+                            background: "rgba(255, 255, 255, 0.10)",
+                            backdropFilter: "blur(10px) saturate(1.1) brightness(1.1)",
+                            WebkitBackdropFilter: "blur(10px) saturate(1.1) brightness(1.1)",
+                            WebkitMaskImage:
+                              "linear-gradient(to bottom, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 1) 65%)",
+                            maskImage:
+                              "linear-gradient(to bottom, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 1) 65%)",
+                          }}
+                        />
+                        <div className="absolute left-3 top-3 z-20 text-3xl">
                           {slide.emoji}
                         </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                          <h3 className="text-2xl font-bold tracking-tight">
+                        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pt-10 text-center text-white">
+                          <h3 className="font-gayathri text-2xl font-medium tracking-tight">
                             {slide.title}
                           </h3>
-                          <p className="mt-0.5 text-xs font-medium uppercase tracking-wider opacity-90">
+                          <p className="mt-0.5 text-xs font-medium tracking-tight opacity-90">
                             {slide.subtitle}
                           </p>
-                          <p className="mt-1.5 line-clamp-2 text-xs opacity-85">
+                          <p className="mt-1.5 line-clamp-2 text-xs font-medium opacity-90">
                             {slide.desc}
                           </p>
                         </div>
@@ -399,6 +529,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+        )}
       </main>
 
       <BottomNav />

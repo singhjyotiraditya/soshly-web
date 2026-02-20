@@ -10,6 +10,8 @@ import {
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signInWithPhoneNumber,
   RecaptchaVerifier,
@@ -63,6 +65,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, []);
 
+  // After Google redirect sign-in, process the result and set session cookie
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result?.user) return;
+        const idToken = await result.user.getIdToken();
+        const res = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        if (res.ok) setStoredIdToken(idToken);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!firebaseUser?.uid) return;
     let cancelled = false;
@@ -86,10 +104,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const idToken = await result.user.getIdToken();
-    await setSessionCookie(idToken);
-    await refreshUser();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      await setSessionCookie(idToken);
+      await refreshUser();
+    } catch (err: unknown) {
+      const code = err && typeof err === "object" && "code" in err ? (err as { code: string }).code : "";
+      if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+      throw err;
+    }
   }, [setSessionCookie, refreshUser]);
 
   const signInWithPhone = useCallback(

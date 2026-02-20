@@ -5,8 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { getExperience } from "@/lib/firestore-experiences";
+import { getTicketForUserAndExperience } from "@/lib/firestore-wallet";
 import { BaseLayout } from "@/components/BaseLayout";
 import { PageHeader } from "@/components/PageHeader";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Experience } from "@/types";
 
 const fieldBlock =
@@ -36,14 +38,26 @@ function formatDuration(minutes: number): string {
 export default function ExperienceDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { user } = useAuth();
   const [experience, setExperience] = useState<Experience | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasJoined, setHasJoined] = useState(false);
 
   useEffect(() => {
     getExperience(id)
       .then(setExperience)
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !user?.uid) {
+      setHasJoined(false);
+      return;
+    }
+    getTicketForUserAndExperience(id, user.uid)
+      .then((ticket) => setHasJoined(!!ticket))
+      .catch(() => setHasJoined(false));
+  }, [id, user?.uid]);
 
   if (loading) {
     return (
@@ -223,22 +237,33 @@ export default function ExperienceDetailPage() {
 
       <div className="fixed bottom-0 left-0 right-0 z-20 space-y-3 px-4 pb-6 pt-4">
         <div className="mx-auto max-w-md space-y-3">
-          {canJoin && (
+          {hasJoined ? (
             <Link
-              href={`/experience/${id}/join`}
+              href={`/experience/${id}/ticket`}
               className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-gradient-orange px-5 py-4 text-lg font-medium text-white transition hover:opacity-95 active:scale-[0.98] active:opacity-90"
             >
-              <Image src="/star.svg" alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
-              Join experience
+              View ticket
             </Link>
+          ) : (
+            <>
+              {canJoin && (
+                <Link
+                  href={`/experience/${id}/join`}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-gradient-orange px-5 py-4 text-lg font-medium text-white transition hover:opacity-95 active:scale-[0.98] active:opacity-90"
+                >
+                  <Image src="/star.svg" alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                  Join experience
+                </Link>
+              )}
+              <Link
+                href="/tastelists"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-zinc-900 px-5 py-4 text-lg font-medium text-white transition hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700"
+              >
+                <Image src="/save.svg" alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                Save experience
+              </Link>
+            </>
           )}
-          <Link
-            href="/tastelists"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-zinc-900 px-5 py-4 text-lg font-medium text-white transition hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700"
-          >
-            <Image src="/save.svg" alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
-            Save experience
-          </Link>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { ExperienceCoverCard } from "@/components/ExperienceCoverCard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +19,16 @@ const frostedCard =
 type ProfileTab = "tastelists" | "experience" | "liked";
 
 export default function ProfilePage() {
-  const { user, loading: authLoading, firebaseUser } = useAuth();
+  const { user, loading: authLoading, firebaseUser, signOut } = useAuth();
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<ProfileTab>("tastelists");
+
+  useEffect(() => {
+    const t = searchParams?.get("tab");
+    if (t === "experience" || t === "tastelists" || t === "liked") {
+      setTab(t);
+    }
+  }, [searchParams]);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [tastelists, setTastelists] = useState<TasteList[]>([]);
   const [tastelistsLoading, setTastelistsLoading] = useState(true);
@@ -168,20 +177,16 @@ export default function ProfilePage() {
             <p className="text-sm text-white/90">{handle}</p>
           )}
 
-          <div className="mt-4 flex w-full max-w-sm items-center justify-center gap-2">
+          <div className="mt-4 flex w-full max-w-sm justify-center">
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-orange px-4 py-3 text-sm font-medium text-white shadow-lg transition hover:opacity-95 active:scale-[0.98]"
+              onClick={async () => {
+                await signOut();
+                window.location.href = "/";
+              }}
+              className="rounded-2xl border border-white/60 bg-white/20 px-6 py-3 text-sm font-medium text-white backdrop-blur-xl transition hover:opacity-95 active:scale-[0.98]"
             >
-              Follow Creator
-            </button>
-            <button
-              type="button"
-              onClick={shareProfile}
-              className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white bg-white/30 px-5 py-3 text-xs font-medium text-black backdrop-blur-xl"
-            >
-              <Image src="/share.svg" alt="" width={20} height={20} className="h-3 w-3" />
-              Share
+              Log out
             </button>
           </div>
 
@@ -359,12 +364,6 @@ export default function ProfilePage() {
                     <p className="text-sm text-white/70">
                       Experiences you host show up here.
                     </p>
-                    <Link
-                      href="/dashboard"
-                      className={`${frostedCard} block p-4 text-white`}
-                    >
-                      Go to Dashboard →
-                    </Link>
                   </>
                 )}
               </div>

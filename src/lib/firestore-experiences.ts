@@ -71,7 +71,6 @@ export async function getPublishedExperiences(
     limit(limitCount)
   );
   const snap = await getDocs(q);
-  console.log(snap.docs.map((d) => d.data()));
   return snap.docs.map((d) =>
     toExperience(d.id, d.data() as Record<string, unknown>)
   );

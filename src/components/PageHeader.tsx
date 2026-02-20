@@ -4,9 +4,10 @@ import Image from "next/image";
 interface PageHeaderProps {
   title: string;
   backHref: string;
+  rightContent?: React.ReactNode;
 }
 
-export function PageHeader({ title, backHref }: PageHeaderProps) {
+export function PageHeader({ title, backHref, rightContent }: PageHeaderProps) {
   return (
     <header className="sticky top-0 z-30 px-4 pb-2 pt-4">
       <div className="mx-auto flex max-w-md items-center gap-4">
@@ -26,7 +27,9 @@ export function PageHeader({ title, backHref }: PageHeaderProps) {
         <h1 className="flex-1 text-center text-xl font-medium text-white">
           {title}
         </h1>
-        <div className="h-10 w-10 shrink-0" aria-hidden />
+        <div className="flex min-w-10 shrink-0 items-center justify-end">
+          {rightContent}
+        </div>
       </div>
     </header>
   );

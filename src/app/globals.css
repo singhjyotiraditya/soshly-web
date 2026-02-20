@@ -96,6 +96,15 @@ body {
   background: var(--gradient-orange);
 }
 
+/* Hide scrollbar while keeping scroll behavior */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Finding persona loading screen */
 @keyframes finding-pulse {
   0%,
