@@ -212,19 +212,25 @@ export default function TasteListDetailPage() {
                 <Link
                   key={place.id}
                   href={href}
-                  className="relative block h-44 w-36 shrink-0 overflow-hidden rounded-2xl"
+                  className="flex h-44 w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/40"
                 >
-                  <Image
-                    src={cover}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="144px"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                    <p className="font-medium">{place.title}</p>
-                    <p className="text-xs opacity-90">{place.address ?? ""}</p>
+                  <div className="relative h-1/2 w-full shrink-0">
+                    <Image
+                      src={cover}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="320px"
+                    />
+                  </div>
+                  <div
+                    className="flex h-1/2 flex-col justify-center bg-transparent p-3 text-white"
+                    style={{
+                      boxShadow: "inset 0 0 20px 2px rgba(255, 255, 255, 0.25)",
+                    }}
+                  >
+                    <p className="font-medium leading-tight">{place.title}</p>
+                    <p className="mt-0.5 text-xs text-white/90">{place.address ?? ""}</p>
                   </div>
                 </Link>
               );

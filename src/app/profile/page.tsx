@@ -184,7 +184,7 @@ function ProfileContent() {
                 await signOut();
                 window.location.href = "/";
               }}
-              className="rounded-2xl border border-white/60 bg-white/20 px-6 py-3 text-sm font-medium text-white backdrop-blur-xl transition hover:opacity-95 active:scale-[0.98]"
+              className="rounded-3xl border border-white/60 bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-xl transition hover:opacity-95 active:scale-[0.98]"
             >
               Log out
             </button>
@@ -233,7 +233,19 @@ function ProfileContent() {
 
         {/* Tabs: Tastelists | Experience | Liked */}
         <div className="mt-8">
-          <div className="flex w-full">
+          <div className="relative flex w-full rounded-[15px] p-1">
+            {/* Sliding pill */}
+            <div
+              className="absolute top-1 bottom-1 w-[calc((100%-8px)/3)] rounded-[13px] transition-[transform] duration-200 ease-out"
+              style={{
+                left: "4px",
+                transform: `translateX(calc(${(tab === "tastelists" ? 0 : tab === "experience" ? 1 : 2)} * (100% + 4px)))`,
+                background:
+                  "linear-gradient(111deg, #F35100 5.96%, #FE9764 112.68%), rgba(255, 255, 255, 0.10)",
+                boxShadow:
+                  "inset 0 0 16.1px 3px rgba(255, 255, 255, 0.54)",
+              }}
+            />
             {(
               [
                 { id: "tastelists" as const, label: "Tastelists" },
@@ -245,21 +257,9 @@ function ProfileContent() {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`flex-1 py-2.5 text-sm font-medium transition ${
-                  tab === id
-                    ? "rounded-[15px] text-white"
-                    : "text-white/90 hover:text-white"
+                className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition-colors duration-200 ${
+                  tab === id ? "text-white" : "text-white/90 hover:text-white"
                 }`}
-                style={
-                  tab === id
-                    ? {
-                        background:
-                          "linear-gradient(111deg, #F35100 5.96%, #FE9764 112.68%), rgba(255, 255, 255, 0.10)",
-                        boxShadow:
-                          "inset 0 0 16.1px 3px rgba(255, 255, 255, 0.54)",
-                      }
-                    : { background: "transparent", boxShadow: "none" }
-                }
               >
                 {label}
               </button>
