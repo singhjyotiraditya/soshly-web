@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -18,7 +18,7 @@ const frostedCard =
 
 type ProfileTab = "tastelists" | "experience" | "liked";
 
-export default function ProfilePage() {
+function ProfileContent() {
   const { user, loading: authLoading, firebaseUser, signOut } = useAuth();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<ProfileTab>("tastelists");
@@ -381,5 +381,19 @@ export default function ProfilePage() {
       </main>
       <BottomNav />
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-white/80">Loading…</p>
+        </div>
+      }
+    >
+      <ProfileContent />
+    </Suspense>
   );
 }
