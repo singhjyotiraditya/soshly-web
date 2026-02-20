@@ -1,65 +1,161 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { TextInput, Button, Text } from "@/components/ui";
+import { useAuth } from "@/contexts/AuthContext";
+import { createOrUpdateUser } from "@/lib/firestore-users";
+import { auth } from "@/lib/firebase";
 
 export default function Home() {
+  const { signInWithGoogle, refreshUser, loading } = useAuth();
+  const router = useRouter();
+  const [nickname, setNickname] = useState("");
+  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState({
+    nickname: "",
+    username: "",
+    phone: "",
+  });
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError({ nickname: "", username: "", phone: "" });
+    const trimmedNick = nickname.trim();
+    const trimmedUser = username.trim();
+    const trimmedPhone = phone.replace(/\D/g, "");
+    if (!trimmedNick) {
+      setError((prev) => ({ ...prev, nickname: "Please enter a nickname." }));
+      return;
+    }
+    if (!trimmedUser) {
+      setError((prev) => ({ ...prev, username: "Please enter a username." }));
+      return;
+    }
+    if (trimmedPhone.length < 10) {
+      setError((prev) => ({
+        ...prev,
+        phone: "Please enter a valid phone number.",
+      }));
+      return;
+    }
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "soshly_signup",
+        JSON.stringify({
+          nickname: trimmedNick,
+          username: trimmedUser,
+          phone: "+91" + trimmedPhone,
+        })
+      );
+    }
+    setSubmitLoading(true);
+    try {
+      await signInWithGoogle();
+      const fbUser = auth.currentUser;
+      if (fbUser?.uid) {
+        await createOrUpdateUser(fbUser.uid, {
+          nickname: trimmedNick,
+          username: trimmedUser.toLowerCase(),
+          phone: "+91" + trimmedPhone,
+          email: fbUser.email ?? undefined,
+          onboardingComplete: false,
+        });
+        await refreshUser();
+      }
+      router.push("/onboarding");
+      router.refresh();
+    } catch {
+      setError((prev) => ({ ...prev, nickname: "Sign in failed. Try again." }));
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Text variant="secondary">Loading…</Text>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
+      <div className="flex flex-col items-center mb-8">
         <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
+          src="/logo.svg"
+          alt="Soshly"
+          width={76}
+          height={57}
+          className="h-12 w-auto sm:h-14"
           priority
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+        <Text variant="primary" as="h1" className="font-gebuk text-[48px]">
+          soshly
+        </Text>
+      </div>
+
+      <div className="w-full max-w-sm rounded-[30px] border border-white bg-black/[0.07] px-3 pt-9 pb-4 shadow-[inset_0_0_24.6px_7px_rgba(255,255,255,0.25)] backdrop-blur-md sm:p-8">
+        <div className="text-center">
+          <Text variant="primary" className="mb-1">
+            Welcome back!
+          </Text>
+          <Text variant="secondary" className="mx-4 mb-6">
+            Jump right into the buzz around you, tailored to your taste.
+          </Text>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <TextInput
+            placeholder="Nickname"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            autoComplete="nickname"
+            error={error.nickname}
+          />
+          <TextInput
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+            autoComplete="username"
+            error={error.username}
+          />
+          <TextInput
+            type="tel"
+            placeholder="Phone number"
+            value={phone}
+            onChange={(e) =>
+              setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+            }
+            autoComplete="tel"
+            error={error.phone}
+            prefix="+91 "
+            maxLength={10}
+          />
+
+          <Button
+            type="submit"
+            variant="secondary"
+            fullWidth
+            disabled={submitLoading}
+            rightIcon={
+              <Image
+                src="/google.svg"
+                alt=""
+                aria-hidden
+                width={14}
+                height={14}
+              />
+            }
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            Sign in with Google
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
