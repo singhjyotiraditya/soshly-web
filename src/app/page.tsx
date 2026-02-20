@@ -85,7 +85,52 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
-      <div className="flex flex-col items-center mb-8">
+      <div className="relative flex flex-col items-center mb-8 py-4">
+        {/* Left emojis */}
+        <span
+          className="absolute -left-20 top-0 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "rotate(-12deg)", display: "inline-block" }}>🎭</span>
+        </span>
+        <span
+          className="absolute -left-10 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0.35s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "translateY(-50%) rotate(6deg)", display: "inline-block" }}>🍝</span>
+        </span>
+        <span
+          className="absolute bottom-0 -left-20 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0.7s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "rotate(-6deg)", display: "inline-block" }}>👾</span>
+        </span>
+        {/* Right emojis */}
+        <span
+          className="absolute -right-20 top-0 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0.2s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "rotate(15deg)", display: "inline-block" }}>🃏</span>
+        </span>
+        <span
+          className="absolute -right-10 top-1/2 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0.55s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "translateY(-50%) rotate(-8deg)", display: "inline-block" }}>🍺</span>
+        </span>
+        <span
+          className="absolute bottom-0 -right-20 text-2xl sm:text-3xl animate-emoji-pulse"
+          style={{ animationDelay: "0.9s" }}
+          aria-hidden
+        >
+          <span style={{ transform: "rotate(5deg)", display: "inline-block" }}>🎳</span>
+        </span>
+        {/* Center: logo + soshly */}
         <Image
           src="/logo.svg"
           alt="Soshly"

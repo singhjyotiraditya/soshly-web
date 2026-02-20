@@ -246,17 +246,38 @@ export default function TasteListDetailPage() {
               Your places ({items.length})
             </h2>
             <ul className="space-y-3">
-              {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="rounded-2xl border border-white/40 bg-white/20 p-4 backdrop-blur-xl"
-                >
-                  <h3 className="font-medium text-white">{item.title}</h3>
-                  <p className="mt-1 text-sm text-white/80">
-                    {item.description ?? item.address ?? item.type}
-                  </p>
-                </li>
-              ))}
+              {items.map((item) => {
+                const cover =
+                  item.photos?.[0] ?? `https://picsum.photos/seed/${item.id}/300/400`;
+                return (
+                  <li
+                    key={item.id}
+                    className="flex flex-col overflow-hidden rounded-2xl border border-white/40"
+                  >
+                    <div className="relative h-44 w-full shrink-0">
+                      <Image
+                        src={cover}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 504px) 100vw, 504px"
+                      />
+                    </div>
+                    <div
+                      className="flex flex-col justify-center bg-transparent p-3 text-white"
+                      style={{
+                        boxShadow:
+                          "inset 0 0 20px 2px rgba(255, 255, 255, 0.25)",
+                      }}
+                    >
+                      <p className="font-medium leading-tight">{item.title}</p>
+                      <p className="mt-0.5 text-xs text-white/90">
+                        {item.description ?? item.address ?? item.type}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

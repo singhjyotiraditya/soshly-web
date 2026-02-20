@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,10 +11,20 @@ import {
 } from "@/lib/firestore-experiences";
 import { createGroupChatForExperience } from "@/lib/firestore-chats";
 import { getTasteList, getTasteListItems } from "@/lib/firestore-tastelists";
+import type { SearchBoxRetrieveResponse } from "@mapbox/search-js-core";
 import { BaseLayout } from "@/components/BaseLayout";
 import { Button } from "@/components/ui/Button";
-import { MapPicker } from "@/components/MapPicker";
 import { PageHeader } from "@/components/PageHeader";
+
+const SearchBox = dynamic(
+  () => import("@mapbox/search-js-react").then((m) => ({ default: m.SearchBox })),
+  { ssr: false }
+);
+
+const MapPicker = dynamic(
+  () => import("@/components/MapPicker").then((m) => ({ default: m.MapPicker })),
+  { ssr: false }
+);
 import { Ripple } from "@/components/Ripple";
 import { GeoPoint } from "firebase/firestore";
 import type { TasteList, TasteListItem } from "@/types";
@@ -117,7 +128,11 @@ function NewExperienceForm() {
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const hasGeneratedRef = useRef(false);
-  const [showMap, setShowMap] = useState(false);
+  const [showMapPopup, setShowMapPopup] = useState(false);
+  const [popupLat, setPopupLat] = useState(40.7128);
+  const [popupLng, setPopupLng] = useState(-74.006);
+  const [popupAddress, setPopupAddress] = useState("");
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const [coverImage, setCoverImage] = useState("");
   const [coverUploading, setCoverUploading] = useState(false);
   const [selectedNote, setSelectedNote] = useState<
@@ -139,8 +154,8 @@ function NewExperienceForm() {
 
   const adjustTextareaHeight = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    el.style.height = "0";
+    el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
   };
 
   useEffect(() => {
@@ -509,6 +524,54 @@ function NewExperienceForm() {
   const handleMapSelect = (newLat: number, newLng: number) => {
     setLat(newLat);
     setLng(newLng);
+  };
+
+  const reverseGeocode = (lng: number, lat: number) => {
+    if (!mapboxToken) return;
+    fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&limit=1`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        const feature = data.features?.[0];
+        if (feature?.place_name) setPopupAddress(feature.place_name as string);
+      })
+      .catch(() => {});
+  };
+
+  const openLocationPopup = () => {
+    setPopupLat(lat);
+    setPopupLng(lng);
+    setPopupAddress(meetingPoint);
+    setShowMapPopup(true);
+  };
+
+  const handlePopupMapSelect = (newLat: number, newLng: number) => {
+    setPopupLat(newLat);
+    setPopupLng(newLng);
+    reverseGeocode(newLng, newLat);
+  };
+
+  const confirmLocation = () => {
+    setLat(popupLat);
+    setLng(popupLng);
+    setMeetingPoint(popupAddress);
+    setShowMapPopup(false);
+  };
+
+  const handlePopupSearchRetrieve = (res: SearchBoxRetrieveResponse) => {
+    const feature = res?.features?.[0];
+    const coords = feature?.geometry?.coordinates;
+    if (!coords || coords.length < 2) return;
+    const lngVal = coords[0] as number;
+    const latVal = coords[1] as number;
+    setPopupLng(lngVal);
+    setPopupLat(latVal);
+    const props = feature?.properties ?? {};
+    const name = (props.name as string) ?? "";
+    const fullAddr = (props.full_address as string) ?? "";
+    const placeName = (feature as { place_name?: string })?.place_name;
+    setPopupAddress(([name, fullAddr].filter(Boolean).join(", ") || placeName) ?? "");
   };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -922,7 +985,13 @@ function NewExperienceForm() {
                   adjustTextareaHeight(e.target);
                 }}
                 rows={1}
-                className="w-full min-h-[1.5em] resize-none overflow-hidden wrap-break-word bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                wrap="soft"
+                className="min-h-[1.5em] w-full min-w-0 max-w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                style={{
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                }}
                 placeholder="Why are you hosting this?"
               />
             </div>
@@ -937,7 +1006,13 @@ function NewExperienceForm() {
                   adjustTextareaHeight(e.target);
                 }}
                 rows={1}
-                className="w-full min-h-[1.5em] resize-none overflow-hidden wrap-break-word bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                wrap="soft"
+                className="min-h-[1.5em] w-full min-w-0 max-w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                style={{
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                }}
                 placeholder="What will happen?"
               />
             </div>
@@ -1011,10 +1086,10 @@ function NewExperienceForm() {
                 <p className="text-xs font-medium text-white/60">Location</p>
                 <button
                   type="button"
-                  onClick={() => setShowMap((v) => !v)}
+                  onClick={openLocationPopup}
                   className="text-xs font-medium text-white/80 underline"
                 >
-                  {showMap ? "Hide map" : "Set on map"}
+                  Set on map
                 </button>
               </div>
               <textarea
@@ -1025,14 +1100,74 @@ function NewExperienceForm() {
                   adjustTextareaHeight(e.target);
                 }}
                 rows={1}
-                className="w-full min-h-[1.5em] resize-none overflow-hidden wrap-break-word bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                className="min-h-[1.5em] w-full min-w-0 max-w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium text-white placeholder:text-white/40 outline-none"
+                style={{
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                }}
                 placeholder="Café XYZ, sector 10, chd"
               />
-              {showMap ? (
-                <div className="mt-2 overflow-hidden rounded-xl">
-                  <MapPicker center={{ lat, lng }} onSelect={handleMapSelect} />
+
+              {/* Location popup: search + map; dragging marker updates address */}
+              {showMapPopup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                  <div className="flex max-h-[90vh] w-full max-w-lg flex-col gap-3 overflow-hidden rounded-2xl border border-white/30 bg-[rgba(20,20,20,0.95)] p-4 shadow-xl backdrop-blur-md">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-white">Set location</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowMapPopup(false)}
+                        className="text-white/70 hover:text-white"
+                        aria-label="Close"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    {mapboxToken ? (
+                      <div className="rounded-xl border border-white/20 bg-white/5 p-2">
+                        <SearchBox
+                          accessToken={mapboxToken}
+                          value={popupAddress}
+                          onChange={(v) => setPopupAddress(v ?? "")}
+                          onRetrieve={handlePopupSearchRetrieve}
+                          placeholder="Search address or place…"
+                          theme={{
+                            variables: {
+                              colorBackground: "rgba(255,255,255,0.9)",
+                              borderRadius: "0.5rem",
+                              padding: "0.5rem 0.75rem",
+                              unit: "14px",
+                            },
+                          }}
+                          options={{
+                            country: process.env.NEXT_PUBLIC_MAPBOX_COUNTRY ?? "IN",
+                            proximity: { lng: popupLng, lat: popupLat },
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="min-h-0 flex-1 overflow-hidden rounded-xl">
+                      <MapPicker
+                        center={{ lat: popupLat, lng: popupLng }}
+                        onSelect={handlePopupMapSelect}
+                        className="h-[240px] w-full"
+                      />
+                    </div>
+                    <p className="text-xs text-white/60">Drag the pin to adjust; address updates automatically.</p>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      fullWidth
+                      onClick={confirmLocation}
+                    >
+                      Set location
+                    </Button>
+                  </div>
                 </div>
-              ) : null}
+              )}
             </div>
 
             <div className="rounded-[15px] border border-white p-3 bg-[rgba(255,255,255,0.156)] shadow-[inset_4px_0_8px_4px_rgba(255,255,255,0)]">

@@ -42,13 +42,13 @@ export function MapPicker({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/light-v11",
       center: [position.lng, position.lat],
       zoom: DEFAULT_ZOOM,
       attributionControl: false,
     });
 
-    const m = new mapboxgl.Marker({ color: "#F35100" })
+    const m = new mapboxgl.Marker({ color: "#F35100", draggable: true })
       .setLngLat([position.lng, position.lat])
       .addTo(map);
     markerRef.current = m;
@@ -63,6 +63,12 @@ export function MapPicker({
       onSelect?.(lat, lng);
     });
 
+    m.on("dragend", () => {
+      const { lng, lat } = m.getLngLat();
+      setMarker({ lat, lng });
+      onSelect?.(lat, lng);
+    });
+
     return () => {
       markerRef.current?.remove();
       markerRef.current = null;
@@ -71,11 +77,18 @@ export function MapPicker({
     };
   }, [token]);
 
+  // Sync map and marker when center (from parent) or marker (from drag/click) changes
   useEffect(() => {
     if (!mapRef.current || !markerRef.current) return;
-    mapRef.current.setCenter([position.lng, position.lat]);
-    markerRef.current.setLngLat([position.lng, position.lat]);
+    const { lat, lng } = position;
+    mapRef.current.setCenter([lng, lat]);
+    markerRef.current.setLngLat([lng, lat]);
   }, [position.lat, position.lng]);
+
+  // When parent passes new center (e.g. from search), update local marker
+  useEffect(() => {
+    setMarker(center);
+  }, [center.lat, center.lng]);
 
   if (!token) {
     return (

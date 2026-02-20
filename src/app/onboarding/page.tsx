@@ -21,6 +21,7 @@ export default function OnboardingPage() {
     { index: number; liked: boolean }[]
   >([]);
   const dragStart = useRef({ x: 0, y: 0 });
+  const isPointerDown = useRef(false);
 
   useEffect(() => {
     if (!loading && !firebaseUser) {
@@ -82,15 +83,17 @@ export default function OnboardingPage() {
   const SWIPE_THRESHOLD = 80;
   const handlePointerDown = (e: React.PointerEvent) => {
     if (exitDirection) return;
+    isPointerDown.current = true;
     dragStart.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (exitDirection) return;
+    if (exitDirection || !isPointerDown.current) return;
     const dx = e.clientX - dragStart.current.x;
     setDragOffset(Math.max(-300, Math.min(300, dx)));
   };
   const handlePointerUp = (e: React.PointerEvent) => {
+    isPointerDown.current = false;
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     if (exitDirection) return;
     const dx = e.clientX - dragStart.current.x;
@@ -105,6 +108,11 @@ export default function OnboardingPage() {
     }
   };
   const handlePointerLeave = () => {
+    if (!exitDirection && !isPointerDown.current) setDragOffset(0);
+  };
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    isPointerDown.current = false;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     if (!exitDirection) setDragOffset(0);
   };
 
@@ -144,11 +152,11 @@ export default function OnboardingPage() {
       </div>
 
       <div
-        className="text-center text-lg font-medium text-white mx-4 mb-1"
+        className="text-center text-lg font-medium text-white mx-4 mt-2"
       >
         What kind of vibe are you all about?
       </div>
-      <div className="text-center text-sm text-white/80 mx-6">
+      <div className="text-center text-sm text-white/80 mx-6 mb-1">
         Swipe the card right if your taste matches the vibe and left if not
       </div>
 
@@ -160,7 +168,7 @@ export default function OnboardingPage() {
               e.stopPropagation();
               handleUndo();
             }}
-            className="flex items-center gap-1.5 rounded-full border border-white/50 bg-white/20 px-3 py-2 text-sm text-white backdrop-blur-sm hover:bg-white/30"
+            className="flex items-center gap-1.5 rounded-full border border-white/50 bg-white/20 px-3 py-1 mr-2 text-sm text-white backdrop-blur-sm hover:bg-white/30"
           >
             <svg
               className="h-4 w-4"
@@ -181,7 +189,7 @@ export default function OnboardingPage() {
       )}
 
       {/* Card stack */}
-      <div className="relative mx-auto flex w-full max-w-[320px] flex-1 flex-col items-center justify-center px-6">
+      <div className="relative mx-auto flex w-full max-w-[320px] flex-1 flex-col items-center justify-center px-6 -mt-2">
         {card && swipeIndex < total - 1 && (
           <div
             className="absolute h-[450px] w-full max-w-[320px] rounded-2xl bg-white/10 backdrop-blur-sm"
@@ -217,7 +225,7 @@ export default function OnboardingPage() {
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerLeave}
-            onPointerCancel={handlePointerLeave}
+            onPointerCancel={handlePointerCancel}
           >
             <div className="relative h-[450px] w-full overflow-hidden rounded-2xl">
               <Image

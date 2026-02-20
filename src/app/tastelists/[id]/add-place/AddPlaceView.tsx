@@ -7,11 +7,10 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { SearchBox } from "@mapbox/search-js-react";
 import type { SearchBoxRetrieveResponse } from "@mapbox/search-js-core";
 import { Button } from "@/components/ui/Button";
-import { BaseLayout } from "@/components/BaseLayout";
 import { PageHeader } from "@/components/PageHeader";
 
-const defaultCenter = { lat: 40.7128, lng: -74.006 };
-
+const defaultCenter: [number, number] = [77.209, 30.7041]; // Chandigarh (same as nearby)
+const defaultZoom = 50;
 const searchBoxTheme = {
   variables: {
     colorBackground: "rgba(255, 255, 255, 0.85)",
@@ -40,9 +39,9 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
   const [lng, setLng] = useState<number | null>(null);
   const [address, setAddress] = useState<string>("");
   const [mapReady, setMapReady] = useState(false);
+  const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
 
   // Prevent browser page-zoom on trackpad pinch (wheel + ctrlKey) over the map.
-  // We do NOT block normal wheel events so Mapbox scroll-zoom works.
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
@@ -55,44 +54,48 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
     return () => window.removeEventListener("wheel", handleWheel);
   }, []);
 
-  // Ask for browser location on mount
+  // Get current location and reverse geocode to prefill search box
   useEffect(() => {
-    if (typeof window === "undefined" || !navigator.geolocation) return;
+    if (typeof window === "undefined" || !navigator.geolocation || !token) return;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLat(position.coords.latitude);
-        setLng(position.coords.longitude);
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        setUserCenter([longitude, latitude]);
+        setLng(longitude);
+        setLat(latitude);
+        fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${token}&limit=1`
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            const feature = data.features?.[0];
+            if (feature?.place_name) setAddress(feature.place_name as string);
+          })
+          .catch(() => {});
       },
-      () => {
-        // User denied or unavailable; keep default center
-      },
+      () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }, []);
+  }, [token]);
 
+  // Init map — same style and behavior as nearby page
   useEffect(() => {
     if (!containerRef.current || !token) return;
     mapboxgl.accessToken = token;
-    const center = lng != null && lat != null ? [lng, lat] : [defaultCenter.lng, defaultCenter.lat];
+    const center = userCenter ?? defaultCenter;
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: center as [number, number],
-      zoom: 12,
+      style: "mapbox://styles/mapbox/light-v11",
+      center,
+      zoom: defaultZoom,
       attributionControl: false,
-      scrollZoom: true,
-      touchZoomRotate: true,
-      doubleClickZoom: true,
-      dragPan: true,
     });
-
-    // Prevent browser page zoom/scroll when interacting with the map.
-    // `touch-action` does not inherit, so apply it to the actual canvas/container.
     map.getCanvas().style.touchAction = "none";
     map.getCanvasContainer().style.touchAction = "none";
 
     const marker = new mapboxgl.Marker({ color: "#F35100", draggable: true })
-      .setLngLat(center as [number, number])
+      .setLngLat(center)
       .addTo(map);
     marker.on("dragend", () => {
       const { lng: lon, lat: latVal } = marker.getLngLat();
@@ -101,17 +104,7 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
     });
     markerRef.current = marker;
     mapRef.current = map;
-    map.on("load", () => {
-      // Be explicit: ensure all interactions are enabled.
-      map.scrollZoom.enable();
-      map.dragPan.enable();
-      map.touchZoomRotate.enable();
-      map.doubleClickZoom.enable();
-      map.boxZoom.enable();
-      map.keyboard.enable();
-      map.dragRotate.enable();
-      setMapReady(true);
-    });
+    map.on("load", () => setMapReady(true));
     map.on("click", (e) => {
       const { lng: lon, lat: latVal } = e.lngLat;
       setLng(lon);
@@ -126,6 +119,15 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
     };
   }, [token]);
 
+  // Center map on user when we get location (same as nearby)
+  useEffect(() => {
+    if (!mapRef.current || !userCenter) return;
+    mapRef.current.setCenter(userCenter);
+    mapRef.current.setZoom(13);
+    markerRef.current?.setLngLat(userCenter);
+  }, [userCenter]);
+
+  // When lat/lng change (search or drag), update map and marker
   useEffect(() => {
     if (!mapRef.current || !markerRef.current || lat == null || lng == null) return;
     mapRef.current.setCenter([lng, lat]);
@@ -155,65 +157,68 @@ export default function AddPlaceView({ tasteListId, token }: AddPlaceViewProps) 
   };
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <BaseLayout className="flex min-h-screen w-full flex-col">
-        {/* Top bar — higher z-index so search box and dropdown sit above map */}
-        <div className="relative z-10 px-3 pb-3 backdrop-blur-sm">
-          <PageHeader title="Add Spot" backHref={`/tastelists/${tasteListId}`} />
-          <div className="relative z-10 mt-3 rounded-xl bg-white/10 backdrop-blur-md">
-            <SearchBox
-              accessToken={token}
-              value={address}
-              onChange={(v) => setAddress(v ?? "")}
-              onRetrieve={handleRetrieve}
-              placeholder="Search address or place…"
-              theme={searchBoxTheme}
-              options={{
-                country: process.env.NEXT_PUBLIC_MAPBOX_COUNTRY ?? "IN",
-                proximity:
-                  lng != null && lat != null
-                    ? { lng, lat }
-                    : { lng: defaultCenter.lng, lat: defaultCenter.lat },
-              }}
-            />
-          </div>
-        </div>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <PageHeader title="Add Spot" backHref={`/tastelists/${tasteListId}`} />
 
-        {/* Map container (contained card) — z-0 so top bar stays on top */}
-        <div className="relative z-0 px-4 py-4">
-          <div className="relative overflow-hidden rounded-2xl border border-white/25 bg-white/5 backdrop-blur-sm">
-            <div
-              ref={containerRef}
-              className="h-[72vh] min-h-[420px] w-full"
-            />
-            {!mapReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-100/80 dark:bg-zinc-800/80">
-                <p className="text-sm text-zinc-500">Loading map…</p>
-              </div>
-            )}
-          </div>
+      {/* Search bar */}
+      <div className="shrink-0 px-4 py-2">
+        <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md">
+          <SearchBox
+            accessToken={token}
+            value={address}
+            onChange={(v) => setAddress(v ?? "")}
+            onRetrieve={handleRetrieve}
+            placeholder="Search address or place…"
+            theme={searchBoxTheme}
+            options={{
+              country: process.env.NEXT_PUBLIC_MAPBOX_COUNTRY ?? "IN",
+              proximity:
+                lng != null && lat != null
+                  ? { lng, lat }
+                  : { lng: defaultCenter[0], lat: defaultCenter[1] },
+            }}
+          />
         </div>
+      </div>
 
-        {/* Sticky bottom CTA */}
-        <div className="sticky bottom-0 z-20 px-4 pb-6 pt-4">
-          <Button
-            type="button"
-            variant="primary"
-            fullWidth
-            leftIcon={
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-            }
-            onClick={goToDetails}
-            disabled={lat == null || lng == null}
-            className="shadow-lg"
-          >
-            Add details
-          </Button>
-        </div>
-      </BaseLayout>
+      {/* Map — full size, same as nearby with gradient mask */}
+      <main className="relative min-h-0 flex-1 w-full overflow-hidden" style={{ minHeight: 0 }}>
+        <div
+          ref={containerRef}
+          className="absolute inset-0 h-full w-full"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0%, black 18%)",
+            maskImage:
+              "linear-gradient(to bottom, transparent 0%, black 18%)",
+          }}
+        />
+        {!mapReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <p className="text-sm text-white">Loading map…</p>
+          </div>
+        )}
+      </main>
+
+      {/* Bottom CTA */}
+      <div className="shrink-0 px-4 pb-6 pt-4">
+        <Button
+          type="button"
+          variant="primary"
+          fullWidth
+          leftIcon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          }
+          onClick={goToDetails}
+          disabled={lat == null || lng == null}
+          className="shadow-lg"
+        >
+          Add details
+        </Button>
+      </div>
     </div>
   );
 }
