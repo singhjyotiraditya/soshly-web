@@ -96,7 +96,7 @@ export default function RevealCharacterPage() {
     if (!firebaseUser && !user) return;
     if (user === undefined) return; // still loading
     if (!firebaseUser) {
-      router.push("/login");
+      router.push("/");
     }
   }, [firebaseUser, user, router]);
 

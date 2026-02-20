@@ -24,7 +24,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!loading && !firebaseUser) {
-      router.push("/login");
+      router.push("/");
     }
   }, [loading, firebaseUser, router]);
 

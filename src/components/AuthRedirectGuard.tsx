@@ -12,13 +12,13 @@ export function AuthRedirectGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const isHomeOrLogin = pathname === "/" || pathname === "/login";
+    const isHome = pathname === "/";
     const isOnboarding =
       pathname === "/onboarding" || pathname.startsWith("/onboarding/");
     const isDashboard =
       pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 
-    if (firebaseUser && isHomeOrLogin) {
+    if (firebaseUser && isHome) {
       const target = user?.onboardingComplete ? "/dashboard" : "/onboarding";
       router.replace(target);
       return;

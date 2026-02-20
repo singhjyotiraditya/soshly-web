@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySessionToken, getSessionCookieName } from "@/lib/session";
 
-const PUBLIC_PATHS = ["/", "/login", "/onboarding"];
+const PUBLIC_PATHS = ["/", "/onboarding"];
 const API_PUBLIC_PREFIX = "/api/auth";
 
 /** Static assets in public/ must not go through auth (else /bg.svg etc. get 307 redirect) */
@@ -28,13 +28,13 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get(cookieName)?.value;
   if (!token) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
   const session = await verifySessionToken(token);
   if (!session) {
-    const res = NextResponse.redirect(new URL("/login", request.url));
+    const res = NextResponse.redirect(new URL("/", request.url));
     res.cookies.set(cookieName, "", { path: "/", maxAge: 0 });
     return res;
   }
